@@ -1,0 +1,50 @@
+name: ina delta
+description: Generate an ina delta between the artifacts of two workflow runs (GitHub or Forgejo).
+
+inputs:
+  artifact-pattern:
+    description: Regular expression matching the full artifact name, in both runs.
+    required: true
+  new-run-id:
+    description: ID of the run that produced the new artifact.
+    required: true
+  previous-run-id:
+    description: >
+      ID of the run that produced the base artifact. Default: the newest earlier
+      successful run of the same workflow and ref.
+    required: false
+    default: ""
+  ina-url:
+    description: Release download URL holding ina-<arch> binaries and SHA256SUMS.
+    required: false
+    default: https://github.com/mpfaff/ina-delta-action/releases/download/ina-6e49ed92c00e
+  token:
+    description: Token allowed to read Actions runs and artifacts.
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  delta-path:
+    description: Path of the generated delta. Empty if there was no previous artifact.
+    value: ${{ steps.delta.outputs.delta-path }}
+  delta-name:
+    description: File name of the generated delta.
+    value: ${{ steps.delta.outputs.delta-name }}
+  previous-run-id:
+    description: ID of the run the base artifact came from.
+    value: ${{ steps.delta.outputs.previous-run-id }}
+
+runs:
+  using: composite
+  steps:
+    - id: delta
+      shell: bash
+      run: python3 "${{ github.action_path }}/ina_delta.py"
+      env:
+        API_URL: ${{ github.api_url }}
+        REPOSITORY: ${{ github.repository }}
+        TOKEN: ${{ inputs.token }}
+        ARTIFACT_PATTERN: ${{ inputs.artifact-pattern }}
+        NEW_RUN_ID: ${{ inputs.new-run-id }}
+        PREVIOUS_RUN_ID: ${{ inputs.previous-run-id }}
+        INA_URL: ${{ inputs.ina-url }}

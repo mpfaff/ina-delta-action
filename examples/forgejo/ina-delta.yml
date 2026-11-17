@@ -1,0 +1,30 @@
+# .forgejo/workflows/ina-delta.yml
+# Forgejo has no workflow_run trigger: dispatch this workflow after the build (see README).
+name: ina delta
+
+on:
+  workflow_dispatch:
+    inputs:
+      new-run-id:
+        description: Run that built the new image
+        required: true
+      previous-run-id:
+        description: Run that built the base image (defaults to the previous run on the same branch)
+        required: false
+
+jobs:
+  delta:
+    runs-on: docker
+    steps:
+      - id: ina
+        uses: https://github.com/mpfaff/ina-delta-action@v1
+        with:
+          artifact-pattern: disk\.qcow2
+          new-run-id: ${{ inputs.new-run-id }}
+          previous-run-id: ${{ inputs.previous-run-id }}
+
+      - if: steps.ina.outputs.delta-path
+        uses: https://code.forgejo.org/forgejo/upload-artifact@v4
+        with:
+          name: ${{ steps.ina.outputs.delta-name }}
+          path: ${{ steps.ina.outputs.delta-path }}

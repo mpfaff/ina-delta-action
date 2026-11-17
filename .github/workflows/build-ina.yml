@@ -1,0 +1,58 @@
+# Builds static ina binaries and publishes them as release ina-<first 12 chars of rev>.
+name: Build ina
+
+on:
+  workflow_dispatch:
+    inputs:
+      rev:
+        description: accrescent/ina commit
+        required: true
+        default: 6e49ed92c00e37ae7c5c677d39ce21925e49b539
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        runner: [ubuntu-26.04, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Build
+        env:
+          REV: ${{ inputs.rev }}
+        run: |
+          set -euox pipefail
+          sudo apt-get update && sudo apt-get install -y musl-tools
+          git clone --revision="$REV" --depth=1 https://github.com/accrescent/ina.git
+          cd ina
+          target="$(uname -m)-unknown-linux-musl"
+          rustup target add "$target"
+          cargo build --release --locked -p ina-cli --target "$target"
+          cp "target/$target/release/ina" "../ina-$(uname -m)"
+
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          path: ina-*
+          archive: false
+
+  release:
+    needs: build
+    runs-on: ubuntu-26.04-arm
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.2
+        with:
+          merge-multiple: true
+
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REV: ${{ inputs.rev }}
+        run: |
+          for f in ina-*; do
+            sha256sum "$f" > "${f}.sha256"
+          done
+          gh release create "ina-${REV:0:12}" ina-* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "ina ${REV:0:12}" \
+            --notes "Built from https://github.com/accrescent/ina/commit/$REV"

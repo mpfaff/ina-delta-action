@@ -1,0 +1,35 @@
+# .github/workflows/ina-delta.yml
+name: ina delta
+
+on:
+  workflow_run:
+    workflows: [Build image]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      new-run-id:
+        description: Run that built the new image
+        required: true
+      previous-run-id:
+        description: Run that built the base image (defaults to the previous run on the same branch)
+        required: false
+
+jobs:
+  delta:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    steps:
+      - id: ina
+        uses: mpfaff/ina-delta-action@v1
+        with:
+          artifact-pattern: disk\.qcow2
+          new-run-id: ${{ inputs.new-run-id || github.event.workflow_run.id }}
+          previous-run-id: ${{ inputs.previous-run-id }}
+
+      - if: steps.ina.outputs.delta-path
+        uses: actions/upload-artifact@v7
+        with:
+          path: ${{ steps.ina.outputs.delta-path }}
+          archive: false
