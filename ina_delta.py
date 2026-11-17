@@ -143,18 +143,18 @@ def find_previous(api: Api, new_run: Run, pattern: re.Pattern) -> tuple[Run | No
 def download_ina(release_url: str, directory: Path) -> Path:
     """Download the prebuilt ina binary for this machine and check it against SHA256SUMS."""
     name = f"ina-{platform.machine()}"
-    checksums = {}
-    with urllib.request.urlopen(f"{release_url}/SHA256SUMS") as response:
-        for line in response.read().decode().splitlines():
-            digest, file = line.split()
-            checksums[file] = digest
+    with urllib.request.urlopen(f"{release_url}/{name}.sha256") as response:
+        line = response.read().decode().rstrip()
+        checksum, file = line.split()
+        if file != name:
+            sys.exit(f"Checksum filename mismatch for {name}: got {file}, expected {name}")
 
     path = directory / "ina"
     urllib.request.urlretrieve(f"{release_url}/{name}", path)
     with path.open("rb") as file:
         digest = hashlib.file_digest(file, "sha256").hexdigest()
-    if digest != checksums[name]:
-        sys.exit(f"Checksum mismatch for {name}: got {digest}, expected {checksums[name]}.")
+    if digest != checksum:
+        sys.exit(f"Checksum mismatch for {name}: got {digest}, expected {checksum}.")
     path.chmod(0o755)
     return path
 
