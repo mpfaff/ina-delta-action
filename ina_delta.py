@@ -13,7 +13,6 @@ import os
 import platform
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import urllib.error
@@ -105,6 +104,7 @@ class Api:
         """Download an artifact into `directory` and return the single file it contains."""
         directory.mkdir(parents=True)
         archive = directory.with_suffix(".zip")
+        print(f"Downloading artifact {artifact.id}...")
         with self.open(f"/actions/artifacts/{artifact.id}/zip") as response, archive.open("wb") as file:
             shutil.copyfileobj(response, file, 1024 * 1024)
 
@@ -142,6 +142,7 @@ def find_previous(api: Api, new_run: Run, pattern: re.Pattern) -> tuple[Run | No
 
 def download_ina(release_url: str, directory: Path) -> Path:
     """Download the prebuilt ina binary for this machine and check it against SHA256SUMS."""
+    print(f"Downloading ina...")
     name = f"ina-{platform.machine()}"
     with urllib.request.urlopen(f"{release_url}/{name}.sha256") as response:
         line = response.read().decode().rstrip()
@@ -193,13 +194,7 @@ def main() -> None:
     old_file = api.download(previous_artifact, work / "old")
     ina = download_ina(os.environ["INA_URL"], work)
 
-    delta = Path("ina-delta", f"{new_file.name}.ina").resolve()
-    delta.parent.mkdir(exist_ok=True)
-    subprocess.run([ina, "diff", old_file, new_file, delta], check=True)
-    print(f"Delta: {delta} ({delta.stat().st_size} bytes)")
-    shutil.rmtree(work)
-
-    set_outputs({"delta-path": delta, "delta-name": delta.name, "previous-run-id": previous_run.id})
+    set_outputs({"new-file": new_file, "old_file": old_file, "work": work})
 
 
 if __name__ == "__main__":

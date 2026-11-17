@@ -26,20 +26,16 @@ inputs:
 outputs:
   delta-path:
     description: Path of the generated delta. Empty if there was no previous artifact.
-    value: ${{ steps.delta.outputs.delta-path }}
+    value: ${{ steps.compute-delta.outputs.delta-path }}
   delta-name:
     description: File name of the generated delta.
-    value: ${{ steps.delta.outputs.delta-name }}
-  previous-run-id:
-    description: ID of the run the base artifact came from.
-    value: ${{ steps.delta.outputs.previous-run-id }}
+    value: ${{ steps.compute-delta.outputs.delta-name }}
 
 runs:
   using: composite
   steps:
-    - id: delta
-      shell: bash
-      run: python3 "${{ github.action_path }}/ina_delta.py"
+    - name: Download artifacts
+      id: download-artifacts
       env:
         API_URL: ${{ github.api_url }}
         REPOSITORY: ${{ github.repository }}
@@ -48,3 +44,30 @@ runs:
         NEW_RUN_ID: ${{ inputs.new-run-id }}
         PREVIOUS_RUN_ID: ${{ inputs.previous-run-id }}
         INA_URL: ${{ inputs.ina-url }}
+      run: python3 "${{ github.action_path }}/ina_delta.py"
+
+    - name: Compute delta
+      id: compute-delta
+      env:
+        NEW_FILE: ${{ steps.download-artifacts.new-file }}
+        OLD_FILE: ${{ steps.download-artifacts.old-file }}
+        WORK: ${{ steps.download-artifacts.work }}
+      run: |
+        set -euox
+
+        mkdir -p "ina-delta"
+        deltaF=$(realpath "ina-delta/$(basename "$NEW_FILE").ina")
+
+        $WORK/ina diff "$OLD_FILE" "$NEW_FILE" "$deltaF"
+        echo "Computed delta"
+        du -h "$deltaF"
+
+        echo "delta-path=$deltaF" >> "$GITHUB_OUTPUT"
+        echo "delta-name=$(basename "$deltaF")" >> "$GITHUB_OUTPUT"
+
+    - name: Clean up
+      env:
+        WORK: ${{ steps.download-artifacts.work }}
+      run: |
+        # clean up the large artifacts
+        rm -rf "$WORK"
